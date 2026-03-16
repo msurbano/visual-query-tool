@@ -1,6 +1,7 @@
 import streamlit as st
 import numpy as np
 import ast
+import ast
 import pandas as pd
 import pm4py
 import copy
@@ -181,17 +182,6 @@ if 'reference_ea' not in st.session_state:
 if "show_table" not in st.session_state:
     st.session_state.show_table = False
 
-if "table_data" not in st.session_state:
-    st.session_state.table_data = pd.DataFrame({
-        "Name": [""],
-        "Filter": [""],
-        "Nodes": [""],
-        "Metrics": [""],
-        "%P": [0.0],
-        "%A": [0.0],
-        "Selection": [""]
-    })
-
 if "collections" not in st.session_state:
     st.session_state.collections = {}
 
@@ -210,6 +200,18 @@ if "selected_ids" not in st.session_state:
 if "rework_act" not in st.session_state:
     st.session_state.rework_act = []
 
+if "selected_coll" not in st.session_state:
+    st.session_state.selected_coll = {}
+
+if "res_vars" not in st.session_state:
+    st.session_state.res_vars = {}
+
+if "var_cont" not in st.session_state:
+    st.session_state.var_cont = 0
+
+if "var_cont_table" not in st.session_state:
+    st.session_state.var_cont_table = 0
+
 
 # ------------------------------------------------------------------------------------------------
 
@@ -217,15 +219,32 @@ mensaje_container = st.empty()
 sample_data = []
 df = load_data.cargar_datos(mensaje_container, sample_data)
 dic_original = {}
+i=0
 
 
-#  ------------------------------------------------------------------------------------------------
-# Elementos de la interfaz
-#  ------------------------------------------------------------------------------------------------
+# Función helper inline para manejar Selection y memoria
+def update_selection(collection_id, new_value, pattern, v_asociada, param="", num=None, second_id=None):
+    row_sel = st.session_state.collections[collection_id].get("selection", "")
     
-# tab1, tab2 = st.tabs(["Comparative features", "Queries"])
+    if row_sel:  # ya hay algo → extraer var_id existente
+        var_id = row_sel.split("<-")[0].strip()
+    else:  # crear nueva variable
+        var_id = f"v{st.session_state.var_cont_table}"
+        st.session_state.var_cont_table += 1
+        st.session_state.var_cont += 1
 
-# with tab1:
+    # st.write(var_id)
+
+    # actualizar memoria
+    st.session_state.res_vars[var_id] = new_value
+
+    # construir texto de Selection según si hay segunda colección
+    if second_id is None:
+        st.session_state.collections[collection_id]["selection"] = f"{var_id} <- {param}_{v_asociada} (n={num}) {pattern}(f{collection_id})"
+    else:
+        st.session_state.collections[collection_id]["selection"] = (
+            f"{var_id} <- {param}_{v_asociada} (n={num}) {pattern} (f{collection_id},f{second_id})"
+        )   
 
 
 if len(st.session_state.original):
@@ -249,14 +268,13 @@ if len(st.session_state.original):
         filtered = pd.DataFrame()
         original = dataframe
 
-        st.markdown("""---""")
+        # st.markdown("""---""")
 
 
         dic_initial = {}
         dic_initial['Initial'] = original
 
         dfg_initial = positions_creation.df_to_dfg(dic_initial,nodes,'Absolute frequency')
-        # positions_creation.nodes_edges(dfg_initial, 'Absolute frequency', 100, 100, nodes)
         positions_creation.threshold(dfg_initial, 'Absolute frequency', 100, 100, nodes)
         
 
@@ -323,11 +341,14 @@ if len(st.session_state.original):
         if(n==0):
             filtered={}
             filtered['Initial'] = dataframe
+            all_manip = []
         else:
+            all_manip = []
             while (cont < n):
                 try:
                     manip = manipulation.manipulation_options(dataframe, original, cont)
-                    filtered = manipulation.apply_manipulation(dataframe, original, manip)
+                    filtered = manipulation.apply_manipulation(dataframe, original, manip, cont+1)
+                    all_manip.append(manip)
                     
                 except Exception as e:
                     st.error(e)
@@ -335,131 +356,173 @@ if len(st.session_state.original):
 
                 dataframe = filtered
                 cont = cont+1
+                # st.session_state.var_cont = st.session_state.var_cont+1
+
+                
+
+        st.subheader("Collections of DFGs in memory")
+        if st.session_state.collections:
+
+            max_manips = 0
+            for data in st.session_state.collections.values():
+                max_manips = max(max_manips, len(data.get("manipulation", [])))
+
+            summary = []
+
+            for cid, data in st.session_state.collections.items():
+
+                row_dict = {
+                    "Collection ID": f"f{cid}",
+                    "Description": data.get("description", ""),
+                    "Number of DFGs": len(data["dfgs"])
+                }
+
+
+                manip_list = data.get("manipulation", [])
 
 
 
-        # col1, col2, col3, col4 = st.columns(4)
-        col1, col2 = st.columns(2)
-        filtered = visualization.zoom_fragment(col1, filtered)
-    
-        left_column, right_column = st.columns([1, 6])
+                if not manip_list:
+                    # No hay manipulaciones → celda vacía
+                    row_dict["Data Manipulation 1"] = ""
+                else:
+                    # Hay manipulaciones → agregamos con varID
+                    for i, manip in enumerate(manip_list):
+                        col_name = f"Data Manipulation {i+1}"   # ahora i varía
+                        valor = manip[2]      # valor real
+                        var_id = manip[3]     # ID persistente guardado
+                        row_dict[col_name] = f"{var_id} <- {manip[0]} {manip[1]} {manip[2]}"
+                
+                row_dict["Selection"] = data.get("selection", "")
+
+
+
+                summary.append(row_dict)
+
+            df_summary = pd.DataFrame(summary)
+
+            cols = [c for c in df_summary.columns if c != "Selection"] + ["Selection"]
+            df_summary = df_summary[cols]
+
+            column_config = {col: st.column_config.TextColumn(disabled=True) 
+                 for col in df_summary.columns if col != "Description"}
+            
+            column_config["Description"] = st.column_config.TextColumn()
+
+ 
+            edited_df = st.data_editor(df_summary, use_container_width=True, hide_index=True, column_config=column_config)
+
+
+            if st.button("Save descriptions"):
+                for _, row in edited_df.iterrows():
+                    cid = int(row["Collection ID"][1:])  # quitar la 'f'
+                    st.session_state.collections[cid]["description"] = row["Description"]
+
+
+        else:
+            st.info("No collections stored yet.")
+
+        # Mostrar tabla de variables
+        if(st.session_state.res_vars):
+            st.dataframe(st.session_state.res_vars)
+
+
 
         if( st.sidebar.button('Generate collection of DFGs', type='primary')):
             st.session_state.generate_pressed = True
             st.session_state.run_pattern = False
-        
-        
-        if st.session_state.generate_pressed :
 
-            tupla = visualization.search_differences(filtered.keys(), metric, nodes)
-            colores = dfg_creation.asignar_colores(tupla[1][1])
-            st.session_state.colores = colores
-
-            z, delete_act = visualization.show_activities(col2, original)
-
-            # filtered = visualization.zoom_fragment(filtered)
 
             if (filtered == {}):
                 st.error('No results (no event log subset matches the specified manipulation actions).')
                 st.session_state.generate_pressed = False
             else:
-
-                st.markdown("""---""")
-                
                 dfgs = dfg_creation.df_to_dfg(filtered,nodes,metric)
-                # st.write(dfgs.items())
+
                 st.session_state.dataframe = dfgs
-                copia_dict = copy.deepcopy(dfgs)
 
-                # if( st.button('Save collection of DFGs', type='primary')):
-                #     st.session_state.collections[st.session_state.id_col] = dfgs
-                #     st.success(f"Saved collection with ID {st.session_state.id_col}")
-                #     st.session_state.id_col += 1
-
-                left_column, right_column = st.columns(2)
-                order_options = ['By the search', "Mean case duration", "Median cycle time", "Number of events", "Number of traces", "Number of activities", "Number of variants", "Rework of cases"]
-                order_by = left_column.selectbox("Order by:", order_options, index=6, key='context_order') 
-                
-                
-                stats = dfg_creation.threshold(copia_dict, metric, perc_act, perc_path, nodes, tupla, delete_act)
-                # st.write(stats)
-                # for g in stats:
-                #     g["svg_path"]
-                dfg_creation.show_DFGs(stats, order_by, metric)
+                st.session_state.collections[st.session_state.id_col] = {
+                "dfgs": dfgs,
+                "manipulation": all_manip,
+                "description": "",
+                "datos": filtered
+                }
 
 
-                i=0
-                with st.expander(" **Pattern recommendation**  :bulb:"):
+                if(all_manip!=[]):
+                    for accion in all_manip:
+                        valor = accion[2]
+                        var_id = f"v{st.session_state.var_cont_table}"
+                        st.session_state.res_vars[var_id] = ", ".join(valor)
+                        # st.session_state.res_vars[var_id] = valor
+                        st.session_state.var_cont += 1
+                        accion.append(var_id)
+                        st.session_state.var_cont_table += 1
+                st.session_state.id_col += 1
+                st.rerun()
 
-                    recommendations.pattern_recommendations(filtered, nodes, metric, perc_act, perc_path)
-                with st.expander(" **Pattern specification** :memo:"):
+        
+        st.subheader("Search for specific DFGs")
+
+        options = {
+            f"f{cid} {data['description']}": cid
+            for cid, data in st.session_state.collections.items()
+        }
+
+
+
+        selected1 = st.selectbox("Select the collection of interest",
+            options=list(options.keys()),key='first_collection',index=None,placeholder="Choose a Collection ID...")
+        
+        selected2 = st.selectbox("Select an optional collection for comparison",
+            options=list(options.keys()),key='second_collection', index=None,placeholder="Choose a Collection ID...")
+        
+        selected_labels=[selected1, selected2]
+        
+        # if(len(selected_labels) >= 1):
+        selected_ids = [
+            options[label]
+            for label in selected_labels
+            if label is not None
+        ]
+        
+        st.session_state.selected_ids = selected_ids
+        # [options[label] for label in selected_labels]
+        # -----------------------------------------------
+
+
+            # if (filtered == {}):
+            #     st.error('No results (no event log subset matches the specified manipulation actions).')
+            #     st.session_state.generate_pressed = False
+            # else:
+                # dfgs = dfg_creation.df_to_dfg(filtered,nodes,metric)
+
+
+                # i=0
+                # with st.expander(" **Pattern recommendation**  :bulb:"):
+
+                #     recommendations.pattern_recommendations(filtered, nodes, metric, perc_act, perc_path)
+                # with st.expander(" **Pattern specification** :memo:"):
                     
-                    specification.pattern(original, dfgs, nodes, metric, perc_act, perc_path,i)
-                i+=1
-            
-            # if st.session_state.save_pressed :
-                # st.session_state.collections[id_col] = dfgs
-            
-        st.subheader("Collections in memory")
+                #     specification.pattern(original, dfgs, nodes, metric, perc_act, perc_path,i)
+                # i+=1
 
-        description = st.text_input(
-            "Collection description",
-            placeholder="e.g. High throughput variants"
-        )
 
-        if( st.button('Save collection of DFGs', type='primary')):
-            st.session_state.collections[st.session_state.id_col] = {
-                        "dfgs": dfgs,
-                        "description": description
-                    }
-            st.success(f"Saved collection with ID {st.session_state.id_col}")
-            st.session_state.id_col += 1
 
         if st.session_state.collections:
-            summary = []
-            for cid, data in st.session_state.collections.items():
-                summary.append({
-                    "Collection ID": cid,
-                    "Number of DFGs": len(data["dfgs"]),
-                    "Description": data.get("description", "")
-                })
+            
 
-            df_summary = pd.DataFrame(summary)
-            st.dataframe(df_summary, use_container_width=True, hide_index=True)
-
-            st.markdown("---")
-
-            # -------- Select collections (0–2) --------
-            options = {
-                f"{cid} – {data['description']}": cid
-                for cid, data in st.session_state.collections.items()
-            }
-
-            selected_labels = st.multiselect(
-                "Select up to 2 collections for pattern specification",
-                options=list(options.keys()),
-                max_selections=2,
-                key="collection_multiselect"
-            )
-
-            # Guardamos la selección en session_state
-            st.session_state.selected_ids = [options[label] for label in selected_labels]
-
-            # -------- Run button --------
-            if st.button("Run pattern specification", type="primary"):
-                if not st.session_state.selected_ids:
-                    st.warning("Please select at least one collection.")
-                else:
-                    st.session_state.run_pattern = True
-
-            if st.session_state.run_pattern:
+            if not st.session_state.selected_ids:
+                st.warning("Please select at least one collection.")
+            else:
+                
                 if(len(st.session_state.selected_ids) == 1):
                     for i, col_id in enumerate(st.session_state.selected_ids):
-                        selected_dfgs = st.session_state.collections[col_id]["dfgs"]
+                        dfgs = st.session_state.collections[col_id]["dfgs"]
 
-                        dfgs = query_selection.pattern(
+                        selected_dfgs, filtered, pattern, num, param = query_selection.pattern(
                             original,
-                            selected_dfgs,
+                            dfgs,
                             nodes,
                             metric,
                             perc_act,
@@ -467,203 +530,136 @@ if len(st.session_state.original):
                             i, col_id
                         )  
 
-                        if dfgs:
-                            description = st.text_input(
-                                "Collection description",
-                                placeholder="e.g. High throughput variants", key='text_'+str(i)
-                            )
+                        # all_manip = st.session_state.collections[col_id]["manipulation"] + "  Result: " + str(list(filtered.keys()))
 
-                            if( st.button('Save resulted collection of DFGs', type='primary')):
-                                st.session_state.collections[st.session_state.id_col] = {
-                                            "dfgs": dfgs,
-                                            "description": description
-                                        }
-                                st.success(f"Saved collection with ID {st.session_state.id_col}")
-                                st.session_state.id_col += 1
-                            
-                                st.rerun()
-                            
                 elif(len(st.session_state.selected_ids) == 0):
                     st.write("")
                 
                 else:
-                    dfgs = query_selection.pattern_arguments(
+                    selected_dfgs, filtered, pattern, num, param = query_selection.pattern_arguments(
                             original,
                             nodes,
                             metric,
                             perc_act,
                             perc_path,
                             i
-                        )    
-        
+                        )  
 
-                    if dfgs:
-                        description = st.text_input(
-                            "Collection description",
-                            placeholder="e.g. High throughput variants", key='text_'+str(i)
+                if("Minimum" in param) or (param=='Minimize'):
+                    param="min"
+                elif("Maximum" in param) or (param=='Maximize'):
+                    param='max'
+                    
+
+                if selected_dfgs:
+                    # st.subheader("Visualization options")
+
+                    # col1, col2 = st.columns(2)
+
+                    # selected_dfgs = visualization.zoom_fragment(col1, selected_dfgs)
+                    # tupla = visualization.search_differences(filtered.keys(), metric, nodes)
+                    # colores = dfg_creation.asignar_colores(tupla[1][1])
+                    # st.session_state.colores = colores
+
+                    # z, delete_act = visualization.show_activities(col2, original)
+                    
+                    tupla = ('Existence of activities', ([], []), [], False)
+                    delete_act = []
+
+                    copia_dict = copy.deepcopy(selected_dfgs)
+
+                    order_options = ["Mean case duration", "Median cycle time", "Events", "Traces", "Activities", "Variants"]
+
+                    order_by = st.selectbox("Order by:", order_options, index=0, key='order_'+str(0))
+                    
+                    stats = dfg_creation.threshold(copia_dict, metric, perc_act, perc_path, nodes, tupla, delete_act)
+                    dfg_creation.show_DFGs(stats, order_by, metric)
+
+
+                    first_col_id = st.session_state.selected_ids[0] # la de interes
+
+                    manip_list = st.session_state.collections[first_col_id].get("manipulation", [])
+
+
+                    if len(manip_list) <= 1:
+
+                        v_asociada = manip_list[0][3]
+                        # claves = [", ".join(ast.literal_eval(k)) for k in filtered.keys()]
+                        claves = [element for k in filtered.keys() for element in ast.literal_eval(k)]
+
+                        # st.write(v_asociada,claves)
+
+                    else:
+                        atributo_to_v = {}
+                        atributos = []
+                        # atributos = [manip[1][0] for manip in manip_list]
+                        atributos = sorted(list(set([manip[1][0] for manip in manip_list])))
+
+                        if "atributo_select_v_estable" not in st.session_state:
+                            st.session_state.atributo_select_v_estable = atributos[0]
+
+                        # atributos = list(dict.fromkeys(atributos))  # evita duplicados
+
+                        variables = [manip[3] for manip in manip_list]
+
+
+                        atributo_seleccionado = st.selectbox(
+                            "Select which attribute you want to store in v:",
+                            options=atributos, key='atribute_select'
                         )
-
-                        if( st.button('Save resulted collection of DFGs', type='primary')):
-                            st.session_state.collections[st.session_state.id_col] = {
-                                        "dfgs": dfgs,
-                                        "description": description
-                                    }
-                            st.success(f"Saved collection with ID {st.session_state.id_col}")
-                            st.session_state.id_col += 1
                         
-                            st.rerun()
-                                
-            
-        else:
-            st.info("No collections stored yet.")  
+                        attr_index = atributos.index(atributo_seleccionado)
+                        v_asociada = variables[attr_index]
+
+                        # claves = []
+
+                        # for k in filtered.keys():
+                        #     parts = k.split(";")
+                        #     st.write(parts) 
+                        #     parsed_parts = [ast.literal_eval(p.strip()) for p in parts]
+                        #     valor = parsed_parts[attr_index]
+                        #     claves.append(", ".join(valor))
+
+                        claves = []
+                        for k in filtered.keys():
+                            parts = k.split(";")
+                            parsed_parts = []
+
+                            for p in parts:
+                                # Asegurarnos que es string
+                                if not isinstance(p, str):
+                                    p = str(p)
+
+                                # buscar listas dentro del string
+                                listas = re.findall(r"\[.*?\]", p)
+                                listas_parseadas = []
+                                for l in listas:
+                                    try:
+                                        listas_parseadas.extend(ast.literal_eval(l))
+                                    except Exception as e:
+                                        print(f"Error evaluando {l}: {e}")
+                                parsed_parts.append(listas_parseadas)
+
+                            valor = parsed_parts[attr_index]  # el índice que necesitas
+                            claves.append(", ".join(valor))
 
 
-                    
+                    valor_final = ", ".join(claves)
                 
-# with tab2:
-
-#     i=0
-#     res_queries = {}
-#     vars = {}
-
-#     if len(st.session_state.original):
-#         dataframe = st.session_state.original
-
-#         if 'inicial' not in st.session_state:
-#             st.session_state.inicial = dataframe
+                    if( st.button('Save resulted collection of DFGs', type='primary')):
 
 
+                        if len(st.session_state.selected_ids) == 1:
+                            update_selection(first_col_id, valor_final, pattern, v_asociada, param=param, num=num)
+                        else:
+                            second_col_id = st.session_state.selected_ids[1]
+                            update_selection(first_col_id, valor_final, pattern, v_asociada, param=param, num=num, second_id=second_col_id)
 
-#         if dataframe is not None:
+                        st.rerun()
+                        st.success(f"Saved collection with ID {st.session_state.id_col}")
+                           
 
-#             if st.button("Create query"):
-#                 st.session_state.show_table = True
+                    i=0
+                    with st.expander(" **Pattern recommendation**  :bulb:"):
 
-#             if st.session_state.show_table:
-#                 edited_df = st.data_editor(
-#                     st.session_state.table_data,
-#                     num_rows="dynamic",
-#                     use_container_width=True,
-#                     key="editor"
-#                 )
-
-
-#             if st.session_state.show_table:
-#                 if st.button("Run query"):
-#                     st.session_state.table_data = edited_df
-#                     st.success("Saved")
-
-#                     tabla = st.session_state.table_data
-
-#                     for index, row in tabla.iterrows():
-                        
-#                         nombre = row['Name']
-#                         filtro = row['Filter']
-#                         nodos = row['Nodes']
-#                         metrica = row['Metrics']
-#                         perc_p = row['%P']
-#                         perc_a = row['%A']
-#                         selection = row['Selection']
-
-#                         mode  = re.search(r'\[(.*?)\]', filtro)
-#                         mode = mode.group(1) if mode else None
-
-#                         if("<-" in filtro):
-#                             atributo = re.search(r'[\"“”]([^\"“”]+)[\"“”]', filtro)
-#                             atributo = atributo.group(1) if atributo else None
-
-#                             valores = re.search(r'\.\s*(.+)$', filtro)
-#                             valores = valores.group(1) if valores else None
-
-#                             var_filtro = re.search(r'(\w+)\s*<-', filtro)
-#                             var_filtro = var_filtro.group(1) if var_filtro else None
-
-#                             vars[var_filtro] = (atributo, valores)
-
-#                         else:
-#                             var_filtro = re.search(r'\]\s*(\w+)', filtro)
-#                             var_filtro = var_filtro.group(1) if var_filtro else None
-
-#                             tupla = vars.get(var_filtro)
-#                             atributo = tupla[0]
-#                             valores = tupla[1]
-
-
-#                         if (valores == "*"):
-#                             valores = "* All values"
-#                             agrup = True
-#                         else:
-#                             agrup = True
-
-
-#                         if isinstance(valores, list):
-#                             manip = [mode, [atributo, agrup], valores]
-#                         else:
-#                             manip = [mode, [atributo, agrup], [valores]]
-
-#                         if(nodos == "" or nodos==None):
-#                             nodos = "concept:name"
-
-
-#                         try:
-#                             filtered = manipulation.apply_manipulation(dataframe, dataframe, manip)
-                                    
-#                         except Exception as e:
-#                             st.error(e)
-                    
-#                         try:
-#                             dfgs = dfg_creation.df_to_dfg(filtered,nodos,metrica)
-#                             st.session_state.collections[nombre] = dfgs
-#                         except Exception as e:
-#                             st.error(f"Error: '{nodos}' is not one of the attributes.")
-
-#                         res_queries[nombre] = dfgs
-
-
-#                         if(selection != "" and selection is not None):
-
-#                             parts = selection.split("<-", 1)
-#                             var_selection = parts[0].strip()
-                            
-#                             resto = parts[1].strip()
-
-#                             idx_par = resto.index("(")
-#                             operador_var = resto[:idx_par] 
-#                             operador, var_entrada = operador_var.split("_", 1)
-
-#                             atributo,valor = vars[var_entrada.strip()]
-
-#                             resto = resto[idx_par:]
-
-#                             m = re.match(r'\(([^)]*)\)(.*)', resto)
-#                             parametros = m.group(1)
-#                             resto = m.group(2)
-
-#                             m = re.search(r'(\w+)\s*\(([^)]*)\)', resto)
-#                             funcion = m.group(1)
-#                             id_coll = m.group(2)
-
-                    #         if(funcion == 'numberOfNodes'):
-                    #             selected, selected_data = query_selection.function_numberOfNodes(dfgs, operador, parametros)
-                    #         else:
-                    #             st.error('Incorrect function name. try with: numberOfNodes, ...')
-
-                    #         keys = [
-                    #             ast.literal_eval(k)[0]
-                    #             for k in selected_data.keys()
-                    #         ]       
-                            
-                    #         vars[var_selection] = (atributo, keys)
-                            
-                    #     if("*" in nombre):
-                    #         # i=i+1
-                    #         copia_dict = copy.deepcopy(dfgs)
-                            
-                    #         stats = query_selection.threshold(copia_dict, metric, perc_act, perc_path, nodes)
-                    #         query_selection.show_DFGs(stats, "Activities", metric, selected_data)
-                            
-                    # st.session_state.collections = res_queries
-                    # st.session_state.variables = vars
-
-
-
+                        recommendations.pattern_recommendations(selected_dfgs, nodes, metric, perc_act, perc_path)      

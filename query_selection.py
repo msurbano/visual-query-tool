@@ -14,12 +14,13 @@ from pm4py.statistics.start_activities.log.get import get_start_activities
 from pm4py.statistics.end_activities.log.get import get_end_activities
 import networkx as nx
 import heapq
-from pm4py.statistics.rework.cases.log import get as rework_cases
+
 from pm4py.objects.conversion.log import converter as log_converter
 from pm4py.objects.log.importer.xes import importer as xes_importer
 from pm4py.objects.log.exporter.xes import exporter as xes_exporter
 from pm4py.algo.filtering.log.end_activities import end_activities_filter
-from pm4py.statistics.rework.cases.log import get as rework_cases
+
+from pm4py.statistics.rework.cases.pandas import get as rework_cases
 from pm4py.algo.filtering.log.attributes import attributes_filter
 from pm4py.algo.filtering.log.attributes import attributes_filter
 import json
@@ -38,68 +39,99 @@ from collections import Counter
 from itertools import combinations
 import traceback
 
-# st.set_page_config(page_title="Pattern specification")
+
 
 maxt = 0
 
-# st.markdown("# Pattern specification ❄️")
-# st.markdown("# Pattern specification ❄️")
 
-# st.write("DataFrame manipulado en la página 1:")
-
-
-def search(expr, param, dic, inicial, measure): 
-    return function(dic,expr,param, inicial, measure)
+def search(expr, param, dic, inicial, measure, num): 
+    if(expr!='All DFGs'):
+        result, fname = function(dic,expr,param, inicial, measure, num)
+        return result, fname
+    else:
+        return (dic, {}), "all_DFGs"
     
-def function(graph, expr, paramF, inicial, measure):
-    if(expr == 'percentageReworkActivityPerEvents'):
-        return percentageReworkPerActivityEventsDFG(graph)
-    elif(expr== 'percentageReworkPerActivity'):
-        return percentageReworkPerActivityDFG(graph)
+def function(graph, expr, paramF, inicial, measure, num):
+#     if(expr == 'percentageReworkActivityPerEvents'):
+#         return percentageReworkPerActivityEventsDFG(graph), percentageReworkPerActivityEventsDFG
+#     elif(expr== 'percentageReworkPerActivity'):
+#         return percentageReworkPerActivityDFG(graph), percentageReworkPerActivityDFG
 
-    elif(expr == 'Identify DFGs by the number of unique nodes'):
-        return uniqueActivitiesDFG(graph, paramF)
+    if(expr == 'Identify DFGs by the number of unique nodes'):
+        return uniqueActivitiesDFG(graph, paramF), "uniqueActivitiesDFG"
 
     elif (expr == 'Identify DFGs by the number of unique resources'):
-        return uniqueActivitiesDFG(graph, paramF)
+        return uniqueActivitiesDFG(graph, paramF), "uniqueActivitiesDFG"
     
     elif(expr == 'Identify infrequent activities'):
-        return infreqact(graph, paramF, measure)
+        return infreqact(graph, paramF, measure), "infreqact"
     
     elif(expr == 'Identify the most frequent activities'):
-        return mostfreqact(graph, paramF, measure)
+        return mostfreqact(graph, paramF, measure), "mostfreqact"
 
-    elif(expr == 'Identify the most frequent fragment'):
-        return mostfreqfrag(graph, param)
+    # elif(expr == 'Identify the most frequent fragment'):
+    #     return mostfreqfrag(graph, param), mostfreqfrag
 
     elif(expr == 'Identify transitions with high duration'):
-        return transduration(graph, paramF, measure)
+        return transduration(graph, paramF, measure), "transduration"
 
     elif(expr == 'Identify activities with high duration'):
         # if(comprobar si es posible calcularlo):
             # return actduration(graph, paramF, measure)
         # else:
         st.markdown(" **Note: The duration associated with the transitions is used for this calculation.** ")
-        return transduration(graph, paramF, measure)
+        return transduration(graph, paramF, measure, num), "transduration"
 
     elif(expr == 'Identify transitions as bottlenecks'):
-        return transbot(graph, paramF, inicial, measure)
+        return transbot(graph, paramF, inicial, measure), "transbot"
 
     elif(expr == 'Identify activities as bottlenecks'):
         # if(comprobar si es posible calcularlo):
             # rreturn actbot(graph, paramF, inicial, measure)
         # else:
         st.markdown(" **Note: The duration associated with the transitions is used for this calculation.** ")
-        return transbot(graph, paramF, inicial, measure)
+        return transbot(graph, paramF, inicial, measure), "transbot"
 
     elif(expr == 'Identify resources with high workload'):
-        return mostfreqresour(graph, paramF, measure)
+        return mostfreqresour(graph, paramF, measure), "mostfreqresour"
 
     elif(expr == 'Identify resources as bottlenecks'):
-        return resourbot(graph, paramF, inicial, measure)
+        return resourbot(graph, paramF, inicial, measure), "resourbot"
+    
+    elif(expr == 'Identify rework'):
+        return rework(graph, paramF, num), "rework"
 
     
+def rework(dic_logs, param, num):
+    resultados = []
 
+    for key, info in dic_logs.items():
+        df = info["df"]
+
+        rework = rework_cases.apply(df, parameters={
+            "case_id_key": "case:concept:name",
+            "activity_key": "concept:name"
+        })
+
+        total_rework = sum(v.get("rework", 0) for v in rework.values())
+        total_activities = sum(v.get("number_activities", 0) for v in rework.values())
+
+        score = total_rework / total_activities if total_activities > 0 else 0.0
+
+        resultados.append((key, score))
+
+    reverse = param == "Maximize"
+    resultados.sort(key=lambda x: x[1], reverse=reverse)
+
+    top = resultados[:num]
+
+    # diccionario con los scores
+    res2 = {k: v for k, v in top}
+
+    # diccionario filtrado con los logs originales
+    res = {k: dic_logs[k] for k, _ in top}
+
+    return res, res2
 
 
 def uniqueActivitiesDFG(dic, param):
@@ -207,38 +239,66 @@ def mostfreqact(dic, param, measure):
             prueba2[key] = res
 
     return prueba, prueba2
+
+def transduration(dic, param, measure, num):
+    resultados = []
+
+    # obtener la duración máxima de transición por DFG
+    for key, datos in dic.items():
+        graph = datos['graph']
+        data = graph.edges.data()
+
+        if not data:
+            continue
+
+        max_edge = max(data, key=lambda e: e[2][measure])
+        max_value = max_edge[2][measure]
+
+        resultados.append((key, max_value, max_edge))
+
+    # ordenar por duración
+    reverse = True if param == "max" else False
+    resultados.sort(key=lambda x: x[1], reverse=reverse)
+
+    top = resultados[:num]
+
+    # diccionario filtrado de DFGs
+    res = {k: dic[k] for k, _, _ in top}
+
+    # diccionario con las aristas relevantes
+    res2 = {k: edge for k, _, edge in top}
+
+    return res, res2
     
-def transduration(dic, param, measure):
-    # Obtener todos los datos de todas las transiciones
-    all_data = []
-    for key, datos in dic.items():
-        graph = datos['graph']
-        data = graph.edges.data()
-        all_data.extend([edge[2][measure] for edge in data])
+# def transduration(dic, param, measure, num):
+#     # Obtener todos los datos de todas las transiciones
+#     all_data = []
+#     for key, datos in dic.items():
+#         graph = datos['graph']
+#         data = graph.edges.data()
+#         all_data.extend([edge[2][measure] for edge in data])
 
-    # Calcular el promedio general de la duración de las transiciones
-    promedio = sum(all_data) / len(all_data)
-    # st.write(promedio)
+#     # Calcular el promedio general de la duración de las transiciones
+#     promedio = sum(all_data) / len(all_data)
+#     # st.write(promedio)
 
-    # Filtrar las transiciones según el parámetro y el promedio general
-    prueba = {}
-    prueba2={}
-    for key, datos in dic.items():
-        graph = datos['graph']
-        data = graph.edges.data()
+#     # Filtrar las transiciones según el parámetro y el promedio general
+#     prueba = {}
+#     prueba2={}
+#     for key, datos in dic.items():
+#         graph = datos['graph']
+#         data = graph.edges.data()
         
-        if (param == 'Mean cycle time of transitions' or param == 'Mean cycle time of activities') :
-            res = [edge for edge in data if edge[2][measure] > promedio] 
-        else:
-            res = [edge for edge in data if edge[2][measure] > param * 60]
+#         if (param == 'Mean cycle time of transitions' or param == 'Mean cycle time of activities') :
+#             res = [edge for edge in data if edge[2][measure] > promedio] 
+#         else:
+#             res = [edge for edge in data if edge[2][measure] > param * 60]
     
-        if len(res) > 0:
-            prueba[key] = datos
-            prueba2[key] = res
+#         if len(res) > 0:
+#             prueba[key] = datos
+#             prueba2[key] = res
 
-    # st.write(prueba)
-
-    return prueba, prueba2
+#     return prueba, prueba2
 
 def actduration(dic, param):
 
@@ -648,12 +708,14 @@ def pattern(inicial, data, nodes, metric, perc_act, perc_path,i, col_id):
                         'Identify activities as bottlenecks'), key=col_id)    # impememtado pero falta comprobar que existe tiempo asociado a actividades
                         # 'Identify activity loops as bottlenecks'))  # no implementado aun
             else:
+                # st.markdown('<span style="color:red">Select a collection:</span>', unsafe_allow_html=True)
                 pattern = st.selectbox(
-                        'Pattern search',
+                        'Pattern search', 
                         # ('Identify the most frequent fragment',
-                        ('Identify DFGs by the number of unique nodes',  
+                        ('All DFGs','Identify DFGs by the number of unique nodes',  
                         'Identify infrequent activities',
-                        'Identify the most frequent activities'), key=col_id)
+                        'Identify the most frequent activities',
+                        'Identify rework'), key=col_id)
 
         elif(nodes == 'org:resource'):
             if metric in ['Mean Cycle Time', 'Median Cycle Time', 'StDev Cycle Time', 'Total Cycle Time']: 
@@ -698,6 +760,11 @@ def pattern(inicial, data, nodes, metric, perc_act, perc_path,i, col_id):
                 option = 'Number of nodes'
             else:
                 option=""
+
+        elif(pattern == 'Identify rework'):
+            param = st.selectbox('Optimization', 
+            ['Maximize', "Mimimize"], key=f"param_{col_id}")
+            option= st.number_input('Top-k:', step=1, min_value=0)
             
         # elif (pattern == 'Identify activities with high duration'): #solo es posible si hay tiempo de inicio y fin de actividades
         #     param = st.number_input('Minimum minutes to consider an activity with high duration', step=1) 
@@ -733,13 +800,9 @@ def pattern(inicial, data, nodes, metric, perc_act, perc_path,i, col_id):
                 option=''
 
         elif (pattern == 'Identify activities with high duration'):
-            param = st.selectbox('Minimum minutes to consider an activity with high duration', 
-            ['Mean cycle time of activities',  'Other'], key=f"param_{col_id}")
-            if param == 'Other':
-                param = st.number_input('Minimum minutes to consider a activity with high duration', step=1, min_value=0)
-                option='Duration of activities'
-            else:
-                option='Duration of activities'
+            param = 'Maximize'
+            option = st.number_input('Top-k', step=1, min_value=0)
+
 
         elif (pattern == 'Identify transitions as bottlenecks'):
             param = st.selectbox('Number of transitions', 
@@ -788,39 +851,26 @@ def pattern(inicial, data, nodes, metric, perc_act, perc_path,i, col_id):
             param = st.selectbox('Rework of activities', 
             ['Mean rework',  'Other value as maximum rework'], key=f"param_{col_id}")
             if param == 'Other value as maximum rework':
-                param = st.number_input('Maximum rework', min_value=1,step=1)      
+                param = st.number_input('Maximum rework', min_value=1,step=1)     
+        else:
+            param = '' 
+            option=''
 
         translater={"Absolute Frequency":"abs_freq","Case Frequency":"case_freq",
                         "Max Repetitions":"max_repetitions", "Total Repetitions":
                         "total_repetitions","Median Cycle Time":"median","Mean Cycle Time":"mean","StDev Cycle Time":"stdev","Total Cycle Time":"total"}
 
-    # return pattern,param
 
-# def apply_pattern(pattern,param,inicial, dic, nodes, metric, perc_act, perc_path):
 
     measure=translater[metric]
 
-    selected, selected_data = search(pattern, param, dic, inicial, measure)
+    select , fname = search(pattern, param, dic, inicial, measure, option)
 
-    # st.write(selected_data)
-    
+    selected = select[0]
+    selected_data = select[1]
 
-    # st.markdown(f" **({param}: {number})**")
-    # st.write(selected_data)
-    
-    copia_dict = copy.deepcopy(selected)
-
-    if(option==''):
-        order_options = ["Mean case duration", "Median cycle time", "Events", "Traces", "Activities", "Variants"]
-    else:
-        order_options = ["Mean case duration", "Median cycle time", "Events", "Traces", "Activities", "Variants", option]
-
-    order_by = st.selectbox("Order by:", order_options, index=0, key='order_'+str(col_id))
-    
-    stats = threshold(copia_dict, metric, perc_act, perc_path, nodes)
-    show_DFGs(stats, order_by, metric, selected_data)
-
-    return copia_dict
+    # st.write(fname)
+    return selected, selected_data, fname, option, param
    
 
 
@@ -1027,8 +1077,8 @@ def pattern_arguments(inicial, nodes, metric, perc_act, perc_path,i):
         for dfg_id, dfg in coll["dfgs"].items():       
             res[id]["results"][dfg_id] = func(dfg)
     
-    base_cid = ids[0]
-    target_cid = ids[1]
+    base_cid = ids[1]
+    target_cid = ids[0]
 
     best = compare_collections(res, base_cid, target_cid, param, num)
 
@@ -1044,16 +1094,16 @@ def pattern_arguments(inicial, nodes, metric, perc_act, perc_path,i):
             if key in selected_data.keys():
                 selected[key] = datos
     
-    copia_dict = copy.deepcopy(selected)
+    # copia_dict = copy.deepcopy(selected)
 
-    order_options = ["Mean case duration", "Median cycle time", "Events", "Traces", "Activities", "Variants"]
+    # order_options = ["Mean case duration", "Median cycle time", "Events", "Traces", "Activities", "Variants"]
 
-    order_by = st.selectbox("Order by:", order_options, index=0, key='order_'+str(0))
+    # order_by = st.selectbox("Order by:", order_options, index=0, key='order_'+str(0))
     
-    stats = threshold(copia_dict, metric, perc_act, perc_path, nodes)
-    show_DFGs(stats, order_by, metric, selected_data)
+    # stats = threshold(copia_dict, metric, perc_act, perc_path, nodes)
+    # show_DFGs(stats, order_by, metric, selected_data)
 
-    return copia_dict
+    return selected, selected_data, func.__name__, num, param
 
 
 def dif_numberNodes(dfg):

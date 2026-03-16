@@ -16,16 +16,16 @@ def dfg_options(dataframe):
         atributos.remove(col)
 
             
-    col1, col2, col3, col4 = st.columns(4)
+    # col1, col2, col3, col4 = st.columns(4)
 
             
-    nodes = col1.selectbox(
+    nodes = st.sidebar.selectbox(
                 'Nodes',
                 (atributos2))
 
     lista_metricas = ['Absolute Frequency', 'Case Frequency', 'Max Repetitions', 
                     'Total Repetitions', 'Mean Cycle Time',  'Median Cycle Time', 'StDev Cycle Time', 'Total Cycle Time']
-    metric = col2.selectbox(
+    metric = st.sidebar.selectbox(
                     'Metric',
                     (lista_metricas))
 
@@ -33,9 +33,9 @@ def dfg_options(dataframe):
             #         'Additional metric',
             #         (lista_metricas), )
 
-    perc_act = col3.slider('Activity threshold', min_value=0, max_value=100, value=100)
+    perc_act = st.sidebar.slider('Activity threshold', min_value=0, max_value=100, value=100)
 
-    perc_path = col4.slider('Path threshold', min_value=0, max_value=100, value=100)
+    perc_path = st.sidebar.slider('Path threshold', min_value=0, max_value=100, value=100)
 
     return nodes, metric, perc_act, perc_path
      

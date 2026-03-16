@@ -685,7 +685,8 @@ def pattern_recommendations(data, nodes, metric, perc_act, perc_path):
     for pat in pattern:
         
 
-        selected = search(pat, dic, data, measure)
+        # selected = search(pat, dic, data, measure)
+        selected = search(pat, data, dic, measure)
         copia_dict = copy.deepcopy(selected)
 
         order_options = ["Mean case duration", "Median cycle time", "Events", "Traces", "Activities", "Variants"]

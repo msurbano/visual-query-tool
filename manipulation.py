@@ -47,10 +47,15 @@ ids = []
 if 'ids' not in st.session_state:
     st.session_state['ids'] = []
 
+
 def small_text(text):
     return f"<p style='font-size:11px; color:grey; font-style:italic;'>{text}</p>"
 
 def manipulation_options(df, original, i): 
+    stored_ids = []
+    if "res_vars" in st.session_state and st.session_state.res_vars:
+        stored_ids = list(st.session_state.res_vars.keys()) 
+    # st.write(stored_ids)
     with st.sidebar.expander(f"Data manipulation action {i+1}", expanded=True):
     
         ft_group = st.selectbox(
@@ -86,14 +91,51 @@ def manipulation_options(df, original, i):
                 key=f'at_{i}'
             )
 
-            valores = ['* All values'] + list(original[at].unique())
-            # st.write(valores)
+
+            widget_key = f"value_{i}"
+
+            valores = ['* All values'] + list(original[at].unique()) + stored_ids
+
+            # Si ya había selección guardada, no la tocamos.
+            if widget_key in st.session_state:
+                # Nos aseguramos de que sigue siendo válida
+                st.session_state[widget_key] = [
+                    v for v in st.session_state[widget_key]
+                    if v in valores
+                ]
+
             
-            value = st.multiselect('Value', list(valores), key=f'value_{i}')
+            # st.write(valores)
+ 
+            
+            value = st.multiselect('Value', valores, key=widget_key)
+
+
+
+            resolved_values = []
+
+            for item in value:
+                if item in st.session_state.res_vars:
+                    # Es un ID de variable, agregamos el valor real
+                    resolved_values.append(st.session_state.res_vars[item])
+
+                
+                # elif item != '* All values'
+                    # Es un valor real del dataframe
+                else:
+                    resolved_values.append(item)
+                # else:
+                #     # '* All values' significa tomar todos los valores del dataframe
+                #     resolved_values.extend(list(original[at].unique()))
+
+            # Opcional: eliminar duplicados si quieres
+            resolved_values = list(dict.fromkeys(resolved_values))
+
+
 
             g = st.checkbox('Group by', key=f'g_{i}')
 
-            manip = [ft, (at, g), value]
+            manip = [ft, (at, g), resolved_values]
 
         elif ft_group == 'Performance':
 
@@ -425,7 +467,7 @@ def manipulation_options2(df, original, i, id):
 
 
 
-def apply_manipulation(df, original, manip):
+def apply_manipulation(df, original, manip, cont):
 
     # st.write(manip)
 
@@ -447,6 +489,12 @@ def apply_manipulation(df, original, manip):
     v1 = manip[1]
     
     v2 = manip[2]
+
+    
+    if isinstance(v2, list) and len(v2) == 1 and isinstance(v2[0], str) and "," in v2[0]:
+        v2 = [v.strip() for v in v2[0].split(",")]
+
+    st.write(v2)
     
 
     
@@ -462,9 +510,9 @@ def apply_manipulation(df, original, manip):
                             case_id_key='case:concept:name', timestamp_key='time:timestamp')
                 if(len(filt)!=0):
                     if(key==''):
-                        filtered_dataframe[str(activityFROM) + " - " + str(activityTO)] = filt
+                        filtered_dataframe[str(activityFROM) + "-" + str(activityTO)] = filt
                     else:
-                        filtered_dataframe[key + " ; " + str(activityFROM) + " - " + str(activityTO)] = filt
+                        filtered_dataframe[key + " ; " + str(activityFROM) + "-" + str(activityTO)] = filt
             else:
                 v2.insert(0, activityFROM)
                 v2.append(activityTO)
@@ -477,9 +525,9 @@ def apply_manipulation(df, original, manip):
 
                     if(len(filt)!=0):
                         if(key==''):
-                            filtered_dataframe[str(activityFROM) + " - " + str(activityTO)] = filt
+                            filtered_dataframe[str(activityFROM) + "-" + str(activityTO)] = filt
                         else:
-                            filtered_dataframe[key + " ; " + str(activityFROM) + " - " + str(activityTO)] = filt
+                            filtered_dataframe[key + " ; " + str(activityFROM) + "-" + str(activityTO)] = filt
                     
         elif(ftype == 'Eventually Followed'):
 
@@ -491,9 +539,9 @@ def apply_manipulation(df, original, manip):
                             case_id_key='case:concept:name', timestamp_key='time:timestamp')
                 if(len(filt)!=0):
                     if(key==''):
-                        filtered_dataframe[str(activityFROM) + " - " + str(activityTO)] = filt
+                        filtered_dataframe[str(activityFROM) + "-" + str(activityTO)] = filt
                     else:
-                        filtered_dataframe[key + " ; " + str(activityFROM) + " - " + str(activityTO)] = filt
+                        filtered_dataframe[key + " ; " + str(activityFROM) + "-" + str(activityTO)] = filt
             else:
                 v2.insert(0, activityFROM)
                 v2.append(activityTO)
@@ -506,9 +554,9 @@ def apply_manipulation(df, original, manip):
 
                     if(len(filt)!=0):
                         if(key==''):
-                            filtered_dataframe[str(activityFROM) + " - " + str(activityTO)] = filt
+                            filtered_dataframe[str(activityFROM) + "-" + str(activityTO)] = filt
                         else:
-                            filtered_dataframe[key + " ; " + str(activityFROM) + " - " + str(activityTO)] = filt
+                            filtered_dataframe[key + " ; " + str(activityFROM) + "-" + str(activityTO)] = filt
                               
         elif ftype == "Keep Selected Fragments":
             # st.write('prueba')
@@ -521,9 +569,9 @@ def apply_manipulation(df, original, manip):
                 # st.write(filt)
                 if(len(filt)!=0):
                     if(key==''):
-                        filtered_dataframe[str(activityFROM) + " - " + str(activityTO)] = filt
+                        filtered_dataframe[str(activityFROM) + "-" + str(activityTO)] = filt
                     else:
-                        filtered_dataframe[key + " ; " + str(activityFROM) + " - " + str(activityTO)] = filt
+                        filtered_dataframe[key + " ; " + str(activityFROM) + "-" + str(activityTO)] = filt
                 
             else:
                 v2.insert(0, activityFROM)
@@ -537,9 +585,9 @@ def apply_manipulation(df, original, manip):
 
                     if(len(filt)!=0):
                         if(key==''):
-                            filtered_dataframe[str(activityFROM) + " - " + str(activityTO)] = filt
+                            filtered_dataframe[str(activityFROM) + "-" + str(activityTO)] = filt
                         else:
-                            filtered_dataframe[key + " ; " + str(activityFROM) + " - " + str(activityTO)] = filt
+                            filtered_dataframe[key + " ; " + str(activityFROM) + "-" + str(activityTO)] = filt
                                       
         elif ftype == 'Mandatory':
             g = v1[1]
@@ -553,23 +601,23 @@ def apply_manipulation(df, original, manip):
                         if(key==""):
                             filtered_dataframe[str([v])] = grupo
                         else:
-                            filtered_dataframe[key + " - " + str([v])] = grupo
+                            filtered_dataframe[key + " ; " + str([v])] = grupo
                         
             else:  
                 # st.write([v2])  
                 if(g==True):
-                    # st.write('prueba')
+                    # st.write('manipulacion', v2)
+                    # st.write(v2)
                     for v in v2:
                         grupo = pm4py.filter_trace_attribute_values(df, atr, [v])
                         if(len(grupo)!=0):
                             if(key==""):
                                 filtered_dataframe[str([v])] = grupo
                             else:
-                                filtered_dataframe[key + " - " + str([v])] = grupo
+                                filtered_dataframe[key + " ; " + str([v])] = grupo
                             # filtered_dataframe[v] = grupo
                 # st.write(v1, v2)
                 else:
-                    
                     # st.write(df,atr,v2)
                     grupo = pm4py.filter_trace_attribute_values(df, atr, v2)
                     # st.write(grupo)
@@ -580,7 +628,7 @@ def apply_manipulation(df, original, manip):
                         if(key==""):
                             filtered_dataframe[str(v2)] = grupo
                         else:
-                            filtered_dataframe[key + " - " + str(v2)] = grupo
+                            filtered_dataframe[key + " ; " + str(v2)] = grupo
                         
         elif ftype == 'Keep Selected':
             g = v1[1]
@@ -594,7 +642,7 @@ def apply_manipulation(df, original, manip):
                         if(key==""):
                             filtered_dataframe[str([v])] = grupo
                         else:
-                            filtered_dataframe[key + " - " + str([v])] = grupo
+                            filtered_dataframe[key + " ; " + str([v])] = grupo
                         # filtered_dataframe[v] = grupo
             else:   
                 if(g==True):
@@ -606,14 +654,14 @@ def apply_manipulation(df, original, manip):
                             if(key==""):
                                 filtered_dataframe[str([v])] = grupo
                             else:
-                                filtered_dataframe[key + " - " + str([v])] = grupo
+                                filtered_dataframe[key + " ; " + str([v])] = grupo
                 else:                    
                     grupo = pm4py.filter_event_attribute_values(df, atr, v2,  level='event')
                     if(len(grupo)!=0):
                         if(key==""):
                             filtered_dataframe[str(v2)] = grupo
                         else:
-                            filtered_dataframe[key + " - " + str(v2)] = grupo
+                            filtered_dataframe[key + " ; " + str(v2)] = grupo
 
         elif ftype == 'Forbidden':   
             g = v1[1] 
@@ -627,7 +675,7 @@ def apply_manipulation(df, original, manip):
                         if(key==""):
                             filtered_dataframe[str([v])] = grupo
                         else:
-                            filtered_dataframe[key + " - " + str([v])] = grupo
+                            filtered_dataframe[key + " ; " + str([v])] = grupo
                         # filtered_dataframe[v] = grupo
             else:       
                 if(g==True):
@@ -637,7 +685,7 @@ def apply_manipulation(df, original, manip):
                             if(key==""):
                                 filtered_dataframe[str([v])] = grupo
                             else:
-                                filtered_dataframe[key + " - " + str([v])] = grupo
+                                filtered_dataframe[key + " ; " + str([v])] = grupo
                             # filtered_dataframe[v] = grupo
                 else:
                     grupo = pm4py.filter_trace_attribute_values(df, atr, v2, retain=False)
@@ -645,7 +693,7 @@ def apply_manipulation(df, original, manip):
                         if(key==""):
                             filtered_dataframe[str(v2)] = grupo
                         else:
-                            filtered_dataframe[key + " - " + str(v2)] = grupo
+                            filtered_dataframe[key + " ; " + str(v2)] = grupo
 
         elif ftype == 'Rework':
             # log = check_log(df)
@@ -655,7 +703,7 @@ def apply_manipulation(df, original, manip):
                 if(key==""):
                     filtered_dataframe[v1 + ': ' + str(v2)] = grupo
                 else:
-                    filtered_dataframe[key + " - " + v1 + ': ' + str([v2])] = grupo
+                    filtered_dataframe[key + " ; " + v1 + ': ' + str([v2])] = grupo
                 
         elif ftype == 'Endpoints':
             # log = check_log(df)
@@ -670,7 +718,7 @@ def apply_manipulation(df, original, manip):
                         if(key==""):
                             filtered_dataframe[a + ' - ' + 'endpoints'] = grupo
                         else:
-                            filtered_dataframe[key + " - " + a + ' - ' + 'endpoints'] = grupo
+                            filtered_dataframe[key + " ; " + a + ' - ' + 'endpoints'] = grupo
                         
 
             elif (v1 == ['* All values'] and v2 == ['* All values']):
@@ -683,7 +731,7 @@ def apply_manipulation(df, original, manip):
                             if(key==""):
                                 filtered_dataframe[a + ' - ' + e] = grupo
                             else:
-                                filtered_dataframe[key + " - " + a + ' - ' + e] = grupo
+                                filtered_dataframe[key + " ; " + a + ' - ' + e] = grupo
                             
             
             elif (v1 == ['* All values'] and v2 != []):
@@ -695,7 +743,7 @@ def apply_manipulation(df, original, manip):
                         if(key==""):
                             filtered_dataframe[a + ' - ' + str(v2)] = grupo
                         else:
-                            filtered_dataframe[key + ' - ' + a + ' - ' + str(v2)] = grupo
+                            filtered_dataframe[key + " ; " + a + ' - ' + str(v2)] = grupo
 
             elif (v1 != [] and v2 == ['* All values']):
                 for e in log_end:
@@ -706,7 +754,7 @@ def apply_manipulation(df, original, manip):
                         if(key==""):
                             filtered_dataframe[str(v1) + ' - ' + e] = grupo
                         else:
-                            filtered_dataframe[key + ' - ' + str(v1) + ' - ' + e] = grupo
+                            filtered_dataframe[key + " ; " + str(v1) + ' - ' + e] = grupo
 
             elif (v1 == [] and v2 == ['* All values']):
                 for e in log_end:
@@ -716,7 +764,7 @@ def apply_manipulation(df, original, manip):
                         if(key==""):
                             filtered_dataframe['startpoints' + ' - ' + e] = grupo
                         else:
-                            filtered_dataframe[key + ' - ' + 'startpoints' + ' - ' + e] = grupo
+                            filtered_dataframe[key + " ; " + 'startpoints' + ' - ' + e] = grupo
             
             elif (v1 != [] and v2 != []):
                 filtered_log = pm4py.filter_start_activities(df, v1)
@@ -727,7 +775,7 @@ def apply_manipulation(df, original, manip):
                     # st.write(a)
                         filtered_dataframe[str(v1) + ' - ' + str(v2)] = grupo
                     else:
-                        filtered_dataframe[key + ' - ' + str(v1) + ' - ' + str(v2)] = grupo
+                        filtered_dataframe[key + " ; " + str(v1) + ' - ' + str(v2)] = grupo
 
             
             elif (v1 == [] and v2 != []):
@@ -737,7 +785,7 @@ def apply_manipulation(df, original, manip):
                     if(key==""):
                         filtered_dataframe['startpoints -' + str(v2)] = grupo
                     else:
-                        filtered_dataframe[key + ' - ' + 'startpoints -' + str(v2)] = grupo
+                        filtered_dataframe[key + " ; " + 'startpoints -' + str(v2)] = grupo
 
             elif (v1 != [] and v2 == []):
                 grupo = pm4py.filter_start_activities(df, v1)
@@ -746,13 +794,13 @@ def apply_manipulation(df, original, manip):
                     if(key==""):
                         filtered_dataframe['selected startpoints -  endpoints'] = grupo
                     else:
-                        filtered_dataframe[key + ' - ' + 'selected startpoints -  endpoints'] = grupo
+                        filtered_dataframe[key + " ; " + 'selected startpoints -  endpoints'] = grupo
 
             else:
                 if(key==""):
                     filtered_dataframe[str(v1) + ' - endpoints'] = df
                 else:
-                    filtered_dataframe[key + ' - ' + str(v1) + ' - endpoints'] = df
+                    filtered_dataframe[key + " ; " + str(v1) + ' - endpoints'] = df
 
         elif ftype == 'Path performance':
             # log = check_log(df)
@@ -762,7 +810,7 @@ def apply_manipulation(df, original, manip):
                 if(key==""):
                     filtered_dataframe[str(v1)] = grupo
                 else:
-                    filtered_dataframe[key + ' - ' + str(v1)] = grupo
+                    filtered_dataframe[key + " ; " + str(v1)] = grupo
         
         elif ftype == 'Timeframe':
 
@@ -778,7 +826,7 @@ def apply_manipulation(df, original, manip):
                 if(key==""):
                     filtered_dataframe[str(v2[0]) + ' - ' + str(v2[1])] = grupo
                 else:
-                    filtered_dataframe[key + ' - ' + str(v2[0]) + ' - ' + str(v2[1])] = grupo
+                    filtered_dataframe[key + " ; " + str(v2[0]) + ' - ' + str(v2[1])] = grupo
 
         elif ftype == 'Case performance':
             
@@ -790,7 +838,7 @@ def apply_manipulation(df, original, manip):
                     if(key==""):
                         filtered_dataframe[v2] = grupo
                     else:
-                        filtered_dataframe[key + ' - ' + str(v2)] = grupo
+                        filtered_dataframe[key + " ; " + str(v2)] = grupo
             else:
                 j=0
                 for j in rango:
@@ -801,7 +849,7 @@ def apply_manipulation(df, original, manip):
                         if(key==""):
                             filtered_dataframe[j] = grupo
                         else:
-                            filtered_dataframe[key + ' - ' + j] = grupo
+                            filtered_dataframe[key + " ; " + j] = grupo
                     #     st.write('si hay resultados')
                     # else:
                     #     st.write('No hay resultados')

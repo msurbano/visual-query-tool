@@ -568,7 +568,8 @@ if len(st.session_state.original):
 
                     copia_dict = copy.deepcopy(selected_dfgs)
 
-                    order_options = ["Mean case duration", "Median cycle time", "Events", "Traces", "Activities", "Variants"]
+                    # order_options = ["Mean case duration", "Median cycle time", "Events", "Traces", "Activities", "Variants"]
+                    order_options = ["Events", "Traces", "Activities", "Variants"]
 
                     order_by = st.selectbox("Order by:", order_options, index=0, key='order_'+str(0))
                     

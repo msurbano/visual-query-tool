@@ -494,7 +494,7 @@ def apply_manipulation(df, original, manip, cont):
     if isinstance(v2, list) and len(v2) == 1 and isinstance(v2[0], str) and "," in v2[0]:
         v2 = [v.strip() for v in v2[0].split(",")]
 
-    st.write(v2)
+    # st.write(v2)
     
 
     
@@ -559,14 +559,14 @@ def apply_manipulation(df, original, manip, cont):
                             filtered_dataframe[key + " ; " + str(activityFROM) + "-" + str(activityTO)] = filt
                               
         elif ftype == "Keep Selected Fragments":
-            # st.write('prueba')
+            # ('prueba')
             activityFROM = v1[0] 
             activityTO = v1[1]
             if(v2==[]):
                 filt = pm4py.filter_between(df, 
                     activityFROM,activityTO, activity_key='concept:name', 
                             case_id_key='case:concept:name', timestamp_key='time:timestamp')
-                # st.write(filt)
+                # (filt)
                 if(len(filt)!=0):
                     if(key==''):
                         filtered_dataframe[str(activityFROM) + "-" + str(activityTO)] = filt
@@ -604,10 +604,10 @@ def apply_manipulation(df, original, manip, cont):
                             filtered_dataframe[key + " ; " + str([v])] = grupo
                         
             else:  
-                # st.write([v2])  
+                # ([v2])  
                 if(g==True):
-                    # st.write('manipulacion', v2)
-                    # st.write(v2)
+                    # ('manipulacion', v2)
+                    # (v2)
                     for v in v2:
                         grupo = pm4py.filter_trace_attribute_values(df, atr, [v])
                         if(len(grupo)!=0):
@@ -616,13 +616,13 @@ def apply_manipulation(df, original, manip, cont):
                             else:
                                 filtered_dataframe[key + " ; " + str([v])] = grupo
                             # filtered_dataframe[v] = grupo
-                # st.write(v1, v2)
+                # (v1, v2)
                 else:
-                    # st.write(df,atr,v2)
+                    # (df,atr,v2)
                     grupo = pm4py.filter_trace_attribute_values(df, atr, v2)
-                    # st.write(grupo)
+                    # (grupo)
                     
-                    # st.write(grupo)
+                    # (grupo)
                     if(len(grupo)!=0):
                         
                         if(key==""):
@@ -772,7 +772,7 @@ def apply_manipulation(df, original, manip, cont):
                 # grupo = pm4py.convert_to_dataframe(filtered_log)
                 if(len(grupo)!=0):
                     if(key==""):
-                    # st.write(a)
+                    # (a)
                         filtered_dataframe[str(v1) + ' - ' + str(v2)] = grupo
                     else:
                         filtered_dataframe[key + " ; " + str(v1) + ' - ' + str(v2)] = grupo
@@ -814,11 +814,11 @@ def apply_manipulation(df, original, manip, cont):
         
         elif ftype == 'Timeframe':
 
-            # st.write('prueba')
+            # ('prueba')
 
             grupo = pm4py.filter_time_range(df, v2[0] , v2[1])
 
-            # st.write('prueba', grupo)
+            # ('prueba', grupo)
 
             # Parace que para events funciona bien pero para contained y intersecting no filtra bien 
             if(len(grupo)!=0):
@@ -842,7 +842,7 @@ def apply_manipulation(df, original, manip, cont):
             else:
                 j=0
                 for j in rango:
-                    # st.write(j, rango)
+                    # (j, rango)
                     grupo = pm4py.filter_case_performance(df, j[0]*60, j[1]*60)
                     # grupo = pm4py.convert_to_dataframe(filtered_log)
                     if(len(grupo)!=0):
@@ -850,11 +850,11 @@ def apply_manipulation(df, original, manip, cont):
                             filtered_dataframe[j] = grupo
                         else:
                             filtered_dataframe[key + " ; " + j] = grupo
-                    #     st.write('si hay resultados')
+                    #     ('si hay resultados')
                     # else:
-                    #     st.write('No hay resultados')
+                    #     ('No hay resultados')
     # if(st.sidebar.button('Filtrar')):
     #     st.session_state.generate_pressed = False
-    # st.write(filtered_dataframe)
+    # (filtered_dataframe)
     
     return filtered_dataframe 

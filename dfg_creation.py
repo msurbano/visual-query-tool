@@ -5124,7 +5124,7 @@ def threshold(datos, metric, a, p, nodes, tupla, delete_act):
 
         gviz, order_list = apply_custom(key, dfg_custom,sa,ea,None,None,metric_nodes,None, metric, tupla, delete_act, df)
                 
-                 
+        st.write(df.columns)
 
         meandf, unitdf = statisticslog.mean_case(df)
         mediandf, unitmediandf = statisticslog.median_case(df)

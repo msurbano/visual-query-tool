@@ -423,8 +423,8 @@ if len(st.session_state.original):
             st.info("No collections stored yet.")
 
         # Mostrar tabla de variables
-        if(st.session_state.res_vars):
-            st.dataframe(st.session_state.res_vars)
+        # if(st.session_state.res_vars):
+        #     st.dataframe(st.session_state.res_vars)
 
 
 

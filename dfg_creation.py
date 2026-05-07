@@ -5126,9 +5126,9 @@ def threshold(datos, metric, a, p, nodes, tupla, delete_act):
 
         
 
-        meandf, unitdf = statisticslog.mean_case(df)
-        mediandf, unitmediandf = statisticslog.median_case(df)
-        rework = statisticslog.rework_global(df)
+        # meandf, unitdf = statisticslog.mean_case(df)
+        # mediandf, unitmediandf = statisticslog.median_case(df)
+        # rework = statisticslog.rework_global(df)
 
         if(key==tupla[1][0]):
             key='REFERENCE MODEL: ' + key
@@ -5138,29 +5138,29 @@ def threshold(datos, metric, a, p, nodes, tupla, delete_act):
             stats_list.extend([{
                         "key": key,
                         "svg_path": copy.deepcopy(gviz),
-                        "Mean case duration": meandf,
-                        "Unit": unitdf,
-                        "Median case duration": mediandf,
-                        "Unitmedian": unitmediandf,
+                        # "Mean case duration": meandf,
+                        # "Unit": unitdf,
+                        # "Median case duration": mediandf,
+                        # "Unitmedian": unitmediandf,
                         "Number of events": len(df),
                         "Number of traces": df['case:concept:name'].nunique(),
                         "Number of activities": df['concept:name'].nunique(),
                         "Number of variants": statisticslog.n_variants(df),
-                        "Rework of cases": round(rework*100,1)
+                        # "Rework of cases": round(rework*100,1)
                     }])
         else:
             stats_list.insert(0, {
                         "key": key,
                         "svg_path": copy.deepcopy(gviz),
-                        "Mean case duration": meandf,
-                        "Unit": unitdf,
-                        "Median case duration": mediandf,
-                        "Unitmedian": unitmediandf,
+                        # "Mean case duration": meandf,
+                        # "Unit": unitdf,
+                        # "Median case duration": mediandf,
+                        # "Unitmedian": unitmediandf,
                         "Number of events": len(df),
                         "Number of traces": df['case:concept:name'].nunique(),
                         "Number of activities": df['concept:name'].nunique(),
                         "Number of variants": statisticslog.n_variants(df),
-                        "Rework of cases": round(rework*100,1) 
+                        # "Rework of cases": round(rework*100,1) 
                     })
         # st.write(stats_list)
 
@@ -5204,13 +5204,13 @@ def show_DFGs(stats_list, order, metric):
         
         st1, st2, st3, st4, st5, st6, st7 = left_column.columns(7)
         
-        st1.metric('Mean case duration', str(stat["Mean case duration"]) +  stat["Unit"])
-        st2.metric('Median case duration', str(stat["Median case duration"]) +  stat["Unitmedian"])
+        # st1.metric('Mean case duration', str(stat["Mean case duration"]) +  stat["Unit"])
+        # st2.metric('Median case duration', str(stat["Median case duration"]) +  stat["Unitmedian"])
         st3.metric('Events', str(stat["Number of events"]))
         st4.metric('Traces', str(stat["Number of traces"]))
         st5.metric('Activities', str(stat["Number of activities"]))
         st6.metric('Variants', str(stat["Number of variants"]))
-        st7.metric('Rework of cases', str(stat["Rework of cases"])+ "%")
+        # st7.metric('Rework of cases', str(stat["Rework of cases"])+ "%")
 
         st.write(stat['svg_path'])
 

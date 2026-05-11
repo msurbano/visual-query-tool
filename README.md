@@ -1,3 +1,14 @@
+# Interactive Query Tool for Collections of Process Models
+
+This repository contains the implementation of an interactive query tool for the exploration and comparison of collections of Directly-Follows Graphs (DFGs) using LoVizQL.
+
+## Features
+
+- Interactive construction of LoVizQL queries
+- Creation and storage of DFG collections
+- Comparative analysis across collections
+- Variable reuse across query rows
+- Visualization of multiple DFGs simultaneously
 
 ## Running the tool Locally
 

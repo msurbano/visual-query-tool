@@ -12,4 +12,4 @@ To run the tool locally, follow these steps:
 
 ## Access via Web
 
-It is available at https://visualquerytool.streamlit.app/
+It is available at https://interactivequerytool.streamlit.app/
